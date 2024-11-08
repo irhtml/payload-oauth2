@@ -87,19 +87,35 @@ export interface PluginTypes {
    * Path to the authorize endpoint.
    * Must start with a forward slash.
    * Must NOT have a trailing slash.
-   * This path will have /api/<auth-collection-slug> prepended to it.
+   * This path will have /api/[auth-collection-slug] prepended to it.
    * @default "/oauth/authorize"
    */
   authorizePath?: string;
 
   /**
+   * Specify the prompt parameter for the OAuth provider.
+   * Google uses this parameter to specify the type of login flow.
+   * The following are prompt values for Google:
+   * - none: Do not display any authentication or consent screens.
+   * - consent: Prompt the user for consent.
+   * - select_account: Prompt the user to select an account.
+   */
+  prompt?: string;
+
+  /**
    * Path to the callback endpoint.
    * Must start with a forward slash.
    * Must NOT have a trailing slash.
-   * This path will have /api/<auth-collection-slug> prepended to it.
+   * This path will have /api/[auth-collection-slug] prepended to it.
    * @default "/oauth/callback"
    */
   callbackPath?: string;
+
+  /**
+   * Function to get token from the OAuth providers.
+   * If its not provided default will be used.
+   */
+  getToken?: (code: string) => string | Promise<string>;
 
   /**
    * Redirect users after successful login.
@@ -113,8 +129,6 @@ export interface PluginTypes {
     req: PayloadRequest,
     error?: unknown,
   ) => string | Promise<string>;
-
-  OAuthLoginButton?: React.ComponentType;
 }
 
 export interface NewCollectionTypes {

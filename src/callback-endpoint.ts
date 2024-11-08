@@ -1,6 +1,11 @@
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import { Endpoint, generatePayloadCookie, getFieldsToSign } from "payload";
+import {
+  CollectionSlug,
+  Endpoint,
+  generatePayloadCookie,
+  getFieldsToSign,
+} from "payload";
 import { PluginTypes } from "./types";
 
 export const createCallbackEndpoint = (
@@ -20,8 +25,10 @@ export const createCallbackEndpoint = (
       // shorthands
       // /////////////////////////////////////
       const subFieldName = pluginOptions.subFieldName || "sub";
-      const authCollection = pluginOptions.authCollection || "users";
+      const authCollection = (pluginOptions.authCollection ||
+        "users") as CollectionSlug;
       const collectionConfig = req.payload.collections[authCollection].config;
+      const payloadConfig = req.payload.config;
       const callbackPath = pluginOptions.callbackPath || "/oauth/callback";
       const redirectUri = `${pluginOptions.serverURL}/api/${authCollection}${callbackPath}`;
       const useEmailAsIdentity = pluginOptions.useEmailAsIdentity ?? false;
@@ -35,29 +42,38 @@ export const createCallbackEndpoint = (
       // obtain access token
       // /////////////////////////////////////
 
-      const tokenResponse = await fetch(pluginOptions.tokenEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Accept: "application/json",
-        },
-        body: new URLSearchParams({
-          code,
-          client_id: pluginOptions.clientId,
-          client_secret: pluginOptions.clientSecret,
-          redirect_uri: redirectUri,
-          grant_type: "authorization_code",
-        }).toString(),
-      });
-      const tokenData = await tokenResponse.json();
-      const access_token = tokenData?.access_token;
+      let access_token: string;
+
+      if (pluginOptions.getToken) {
+        access_token = await pluginOptions.getToken(code);
+      } else {
+        const tokenResponse = await fetch(pluginOptions.tokenEndpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            Accept: "application/json",
+          },
+          body: new URLSearchParams({
+            code,
+            client_id: pluginOptions.clientId,
+            client_secret: pluginOptions.clientSecret,
+            redirect_uri: redirectUri,
+            grant_type: "authorization_code",
+          }).toString(),
+        });
+        const tokenData = await tokenResponse.json();
+
+        access_token = tokenData?.access_token;
+      }
+
       if (typeof access_token !== "string")
-        throw new Error(`No access token: ${JSON.stringify(tokenData)}`);
+        throw new Error(`No access token: ${access_token}`);
 
       // /////////////////////////////////////
       // get user info
       // /////////////////////////////////////
       const userInfo = await pluginOptions.getUserInfo(access_token);
+      console.log("userInfo", userInfo);
 
       // /////////////////////////////////////
       // ensure user exists
@@ -81,6 +97,7 @@ export const createCallbackEndpoint = (
         });
       }
 
+      console.log("existingUser", existingUser);
       let user: any;
       if (existingUser.docs.length === 0) {
         user = await req.payload.create({
@@ -103,6 +120,7 @@ export const createCallbackEndpoint = (
         });
       }
 
+      console.log("user", user);
       // /////////////////////////////////////
       // beforeLogin - Collection
       // /////////////////////////////////////
@@ -165,8 +183,8 @@ export const createCallbackEndpoint = (
       // generate and set cookie
       // /////////////////////////////////////
       const cookie = generatePayloadCookie({
-        collectionConfig,
-        payload: req.payload,
+        collectionAuthConfig: collectionConfig.auth,
+        cookiePrefix: payloadConfig.cookiePrefix,
         token,
       });
 
@@ -181,6 +199,7 @@ export const createCallbackEndpoint = (
         status: 302,
       });
     } catch (error) {
+      console.log("error", error);
       // /////////////////////////////////////
       // failure redirect
       // /////////////////////////////////////

@@ -98,6 +98,7 @@ typings/
 
 # dotenv environment variables file
 .env
+.env.local
 
 ### SublimeText ###
 # cache files for sublime text
@@ -248,4 +249,4 @@ dist
 
 dev/src/uploads
 
-.data
+*.db*
